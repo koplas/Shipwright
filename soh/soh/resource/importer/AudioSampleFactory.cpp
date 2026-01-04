@@ -126,14 +126,14 @@ static void Mp3DecoderWorker(std::shared_ptr<SOH::AudioSample> audioSample, std:
     drwav_uint64 channels = mp3.channels;
     drwav_uint64 sampleRate = mp3.sampleRate;
 
-    audioSample->sample.sampleAddr = new uint8_t[numFrames * channels * 2];
+    audioSample->sample.sampleAddr = static_cast<uint8_t*>(::operator new[](numFrames * channels * 2));
     drmp3_read_pcm_frames_s16(&mp3, numFrames, (int16_t*)audioSample->sample.sampleAddr);
 }
 
 static void FlacDecoderWorker(std::shared_ptr<SOH::AudioSample> audioSample, std::shared_ptr<Ship::File> sampleFile) {
     drflac* flac = drflac_open_memory(sampleFile->Buffer.get()->data(), sampleFile->Buffer.get()->size(), nullptr);
     drflac_uint64 numFrames = flac->totalPCMFrameCount;
-    audioSample->sample.sampleAddr = new uint8_t[numFrames * flac->channels * 2];
+    audioSample->sample.sampleAddr = static_cast<uint8_t*>(::operator new[](numFrames * flac->channels * 2));
     drflac_read_pcm_frames_s16(flac, numFrames, (int16_t*)audioSample->sample.sampleAddr);
     drflac_close(flac);
 }
@@ -164,7 +164,7 @@ static void OggDecoderWorker(std::shared_ptr<SOH::AudioSample> audioSample, std:
             uint64_t numChannels = vi->channels;
             int bitStream = 0;
             size_t toRead = numFrames * numChannels * 2;
-            audioSample->sample.sampleAddr = new uint8_t[toRead];
+            audioSample->sample.sampleAddr = static_cast<uint8_t*>(::operator new[](toRead));
             do {
                 read = ov_read(&vf, dataBuff, 4096, 0, 2, 1, &bitStream);
                 memcpy(audioSample->sample.sampleAddr + pos, dataBuff, read);
@@ -176,7 +176,7 @@ static void OggDecoderWorker(std::shared_ptr<SOH::AudioSample> audioSample, std:
         case OggType::Opus: {
             // OPUS encoded data is decoded by the audio driver.
             audioSample->sample.codec = CODEC_OPUS;
-            audioSample->sample.sampleAddr = new uint8_t[sampleFile->Buffer.get()->size()];
+            audioSample->sample.sampleAddr = static_cast<uint8_t*>(::operator new[](sampleFile->Buffer.get()->size()));
             memcpy(audioSample->sample.sampleAddr, sampleFile->Buffer.get()->data(), sampleFile->Buffer.get()->size());
             break;
         }
@@ -206,7 +206,7 @@ ResourceFactoryBinaryAudioSampleV2::ReadResource(std::shared_ptr<Ship::File> fil
     audioSample->sample.isRelocated = reader->ReadUByte();
     audioSample->sample.size = reader->ReadUInt32();
 
-    audioSample->sample.sampleAddr = new uint8_t[audioSample->sample.size];
+    audioSample->sample.sampleAddr = static_cast<uint8_t*>(::operator new[](audioSample->sample.size));
     for (uint32_t i = 0; i < audioSample->sample.size; i++) {
         audioSample->sample.sampleAddr[i] = reader->ReadUByte();
     }
@@ -229,7 +229,7 @@ ResourceFactoryBinaryAudioSampleV2::ReadResource(std::shared_ptr<Ship::File> fil
     audioSample->book.npredictors = reader->ReadInt32();
     uint32_t bookDataCount = reader->ReadUInt32();
 
-    audioSample->book.book = new int16_t[bookDataCount];
+    audioSample->book.book = static_cast<int16_t*>(::operator new[](bookDataCount * sizeof(int16_t)));
 
     for (uint32_t i = 0; i < bookDataCount; i++) {
         audioSample->book.book[i] = reader->ReadInt16();
@@ -276,7 +276,7 @@ ResourceFactoryXMLAudioSampleV0::ReadResource(std::shared_ptr<Ship::File> file,
         audioSample->book.order = bookRoot->IntAttribute("Order");
         tinyxml2::XMLElement* book = bookRoot->FirstChildElement("Book");
         size_t numBooks = audioSample->book.npredictors * audioSample->book.order * 8;
-        audioSample->book.book = new int16_t[numBooks];
+        audioSample->book.book = static_cast<int16_t*>(::operator new[](numBooks * sizeof(int16_t)));
         while (book != nullptr) {
             audioSample->book.book[i++] = book->IntAttribute("Page");
             book = book->NextSiblingElement();
@@ -305,7 +305,7 @@ ResourceFactoryXMLAudioSampleV0::ReadResource(std::shared_ptr<Ship::File> file,
             drwav_get_length_in_pcm_frames(&wav, &numFrames);
 
             audioSample->tuning = (wav.sampleRate * wav.channels) / 32000.0f;
-            audioSample->sample.sampleAddr = new uint8_t[numFrames * wav.channels * 2];
+            audioSample->sample.sampleAddr = static_cast<uint8_t*>(::operator new[](numFrames * wav.channels * 2));
 
             drwav_read_pcm_frames_s16(&wav, numFrames, (int16_t*)audioSample->sample.sampleAddr);
             return audioSample;
@@ -324,7 +324,7 @@ ResourceFactoryXMLAudioSampleV0::ReadResource(std::shared_ptr<Ship::File> file,
         }
     }
     // Not a normal streamed sample. Fallback to the original ADPCM sample to be decoded by the audio engine.
-    audioSample->sample.sampleAddr = new uint8_t[size];
+    audioSample->sample.sampleAddr = static_cast<uint8_t*>(::operator new[](size));
     // Can't use memcpy due to endianness issues.
     for (uint32_t i = 0; i < size; i++) {
         audioSample->sample.sampleAddr[i] = sampleFile->Buffer.get()->data()[i];
